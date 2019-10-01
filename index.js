@@ -91,33 +91,22 @@ app.post('/ttt/', (req,res) => {
 });
 
 const recordGame  = (grid, move,player,winner) => {
-           if(grid.filter((v)=>{ return v == "X"}).length==1){
-             //create new object in user game array
-                let game = {
-                  _id: uuidv4(),
-                  start_date: formatDate(),
-                  grid,
-                  winner
-               };
-             Player.updateOne(player,
-                { $push: {
-                        games: {
-                             $each: [game],
-                             $position: 0
-                         }                        
-                      } },
-                (err, result) => {if(err){console.log(err);}}
-             );
-           }
-           else{
                //access latest games array for playe
                //update winner and grid
               Player.updateOne(player, {
                     $set: {
                         "games.0.grid": grid,
                         "games.0.winner": winner     
-                     }},(err,result)=> {if(err){console.log(err)}} );
-           }                           
+                     }},(err,result)=> {if(err){console.log(err)}} );                          
+}
+
+const getGrid = (oldgrid,move) => { 
+                     let updatedgrid = oldgrid.slice(0);
+                     if(move==null){ 
+                         return updatedgrid;
+                     } 
+                     updatedgrid[move] = 'X';
+                     return updatedgrid;
 }
 
 app.post('/ttt/play', verifyToken ,(req,res) => {
@@ -129,35 +118,37 @@ app.post('/ttt/play', verifyToken ,(req,res) => {
                   jwt.verify(req.token, 'MySecretKey',(err, authData)=> {
                       if(err) {res.json({status: 'ERROR'});}
                       else{
-                          let grid = req.body.grid;
-                          let move = req.body.move;
-                          if(move==null) { 
-                                res.json({grid, winner: ''}); 
-                                 return; 
-                          }
-                          let winner = checkWinner(grid);
-                          if(winner!=''){
-                              res.json({grid: [' ',' ',' ',' ',' ',' ',' ',' ',' '], winner});
-                          }
-                         else{
-                               for(let index=0;index<grid.length;index+=1){
-                                  if(grid[index] == ' '){
-                                     grid[index] = 'O';
-                                      break;
-                                   }
-                               }
-                               winner = checkWinner(grid);
-                               if(winner=='' && grid.every( value => value != ' ')){
-                                  winner=' ';
-                               }
-                              if(winner != ''){
-                              res.json({grid: [' ',' ',' ',' ',' ',' ',' ',' ',' '], winner});
+                          Player.findOne(authData.user).exec().then((doc) => {
+                              let grid = getGrid(doc.games[0].grid,req.body.move);
+                              let move = req.body.move;
+                              if(move==null) { 
+                                    res.json({grid}); 
+                                    return; 
                               }
-                              else{
-                              res.json({grid, winner});
+                              let winner = checkWinner(grid);
+                              if(winner!=''){
+                                  res.json({grid, winner});
+                              }
+                             else{
+                                   for(let index=0;index<grid.length;index+=1){
+                                      if(grid[index] == ' '){
+                                         grid[index] = 'O';
+                                         break;
+                                     }
+                                   }
+                                   winner = checkWinner(grid);
+                                   if(winner=='' && grid.every( value => value != ' ')){
+                                      winner=' ';
+                                   }
+                                   if(winner != ''){
+                                        res.json({grid, winner});
+                                   }
+                                   else{
+                                       res.json({grid});
+                                   }
                              }
-                         }
-                         recordGame(grid,move,authData.user,winner);
+                             recordGame(grid,move,authData.user,winner);
+                           });
                       }      
                 });
                 }
@@ -229,6 +220,22 @@ app.post('/login', (req,res) => {
                jwt.sign({user: player}, 'MySecretKey',(err, token) => {
                      if(err) { res.send({status: 'ERROR'})}
                      else {
+                          //create new object in user game array
+                          let game = {
+                          _id: uuidv4(),
+                          start_date: formatDate(),
+                          grid: [' ',' ',' ',' ',' ',' ',' ',' ',' '],
+                          winner: ""
+                          };
+                          Player.updateOne(player,
+                              {$push:{
+                                   games: {
+                                       $each: [game],
+                                       $position: 0
+                                  }
+                                }},
+                             (err, result) => {if(err){console.log(err);}}
+                          );
                          res.cookie('token',token);
                          res.json({status: 'OK'});
                      }
@@ -249,8 +256,15 @@ app.post('/logout',verifyToken,(req,res) => {
               invalidToken.save((err, doc) => {
                   if(err) {res.json({status: 'ERROR'});}
                   else{
-                  console.log(doc);
-                  res.json({status: 'OK'});
+                      Player.findOne(data.user).exec().then((doc) => {  
+                          if(doc.games[0].grid.filter((v)=>{return v==' '}).length==9){
+                               Player.updateOne(data.user, { 
+                                      $pull: { 
+                                           games: { $position: 0}     
+                                        } 
+                                    }, (err,obj)=>{res.json({status:'OK'});});
+                            }            
+                        });
                   }
               });
            }   
@@ -267,7 +281,10 @@ app.post('/listgames',verifyToken,(req,res) => {
                     if(err) {res.json({status: 'ERROR'});}
                     else{
                        Player.findOne(data.user).exec().then((doc) => {
-                           let games = doc.games.map((v)=>{return {
+                              let games = doc.games.filter((v)=>{ 
+                                      return v.grid.filter((x)=>{return x==' '}).length!=9;
+                              });
+                              games = games.map((v)=>{return {
                                 id: v._id,
                                 start_date: v.start_date
                               }});
@@ -290,9 +307,12 @@ app.post('/getgame',verifyToken,(req,res)=> {
               jwt.verify(req.token, 'MySecretKey',(err, data)=>{
                     if(err) {res.json({status: 'ERROR'});}
                     else{
-                          Player.findOne(data.user).exec().then((doc) => {
+                          Player.findOne(data.user).exec().then((doc) => {                           
                            let game = doc.games.filter((v)=>{ return v._id == req.body.id});
-                           res.json({status:'OK', grid: game[0].grid, winner:game[0].winner});
+                           if(game[0].winner==''){
+                                res.json({status:'OK', grid: game[0].grid});}
+                           else{
+                                res.json({status:'OK', grid: game[0].grid, winner:game[0].winner});}
                            }).catch((err)=>{res.json({status:'ERROR'});});
                      }
                   });
