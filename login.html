@@ -1,0 +1,39 @@
+<html>
+      <head>
+           <link rel="stylesheet" href="styles.css">
+           <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>   
+     </head>
+      <body>
+         <form action="http://130.245.170.254/ttt/"method="post">
+              <fieldset>
+                  <legend>Tic Tac Toe Login</legend>
+                  name:
+                  <input type="text" name="name">
+                  <input id="Enter" type="submit" value="Submit">
+              </fieldset>
+        </form>
+       <div id="game">
+          <table>
+                <tr>
+                    <td><button id="board0" type="button">X</button></td> 
+                    <td><button id="board1" type="button">X</button></td>
+                    <td><button id="board2" type="button">X</button></td>
+                </tr>
+                <tr> 
+                    <td><button id="board3" type=button"">X</button></td>
+                    <td><button id="board4"type="button">X</button></td>
+                    <td><button id="board5" type="button">X</button></td>
+                </tr>
+                <tr>
+                    <td><button id="board6" type="button">X</button></td>
+                    <td><button id="board7" type="button">X</button></td>
+                    <td><button id="board8" type="button">X</button></td>
+                </tr>
+          </table>
+          <button id="completeTurn" type="button">Complete Turn</button>
+          <p id="finished"></p>
+       </div>
+       <script src="script.js" type="text/javascript"></script>
+      </body>
+</html>
+
